@@ -101,30 +101,18 @@ PACKAGES = {
 }
 
 QUALIFYING_OPTIONS = [
-    ("qual_panic", "😰 Panic attacks, often"),
-    ("qual_anxiety", "🌀 Anxiety that never fully turns off"),
-    ("qual_avoid", "🚪 Avoiding life because of the fear"),
-    ("qual_unsure", "😮‍💨 Honestly, just exhausted by all of it"),
+    ("screen2_yes", "Yep"),
+    ("screen2_no", "Not really"),
 ]
 
 VALIDATION_RESPONSES = {
-    "qual_panic": (
-        "That's one of the most disorienting things a body can do to you — "
-        "and it's also one of the most treatable. Panic attacks respond "
-        "fast to the right 1:1 work."
+    "screen2_yes": (
+        "Have you learned all the nervous system tricks...\n\n"
+        "but you want to just enjoy life and not have to constantly check if you are regulated?"
     ),
-    "qual_anxiety": (
-        "Living with the volume turned up all the time is its own kind of "
-        "exhausting. That background hum is exactly what 1:1 work is built "
-        "to quiet."
-    ),
-    "qual_avoid": (
-        "Avoidance feels like safety in the moment, but it keeps the fear "
-        "alive. That pattern can shift — usually faster than people expect."
-    ),
-    "qual_unsure": (
-        "You don't need to have it figured out before we start. Most "
-        "people show up exactly like this — and it's enough."
+    "screen2_no": (
+        "Have you learned all the nervous system tricks...\n\n"
+        "but you want to just enjoy life and not have to constantly check if you are regulated?"
     ),
 }
 
@@ -272,13 +260,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     name = update.effective_user.first_name or ""
     await update.effective_message.reply_text(
-        f"Hi{' ' + name if name else ''}! I'm Oxana. I work 1:1 with people "
-        "whose nervous system has been stuck in panic mode — sometimes for "
-        "years.\n\n"
-        "Before anything else, I want to understand where you're at right "
-        "now.\n\n"
-        "<b>What's hitting hardest?</b>",
-        parse_mode="HTML",
+        "Imagine how frustrating this feels...\n\n"
+        "Every morning you wake up and have to regulate your nervous system before starting your day.\n\n"
+        "Breathing.\n"
+        "Meditation.\n"
+        "Grounding.\n"
+        "Cold showers.\n"
+        "Journaling.\n\n"
+        "You finally feel calm.\n\n"
+        "You finally feel better.\n\n"
+        "And then the next day...\n\n"
+        "it's back.\n\n"
+        "Like you have to start all over again.",
         reply_markup=qualifying_keyboard(),
     )
 
