@@ -1,18 +1,18 @@
 """
-1:1 Coaching Booking Bot
+Panic Circle Membership Bot
 -------------------------
-A Telegram bot that walks a lead through a short qualifying + trust-building
-sequence, then sells a 1:1 coaching session or package via Stripe Checkout,
-and hands them a booking link the moment payment is confirmed.
+A Telegram bot that walks a lead through a short story-driven sequence,
+then sells a Panic Circle membership ($79/month) via Stripe Checkout, and
+hands them the private group invite link the moment payment is confirmed.
 
 No public webhook server is required: after payment, Stripe redirects the
 browser straight back into Telegram (t.me/<bot>?start=paid_<token>), and the
 bot verifies the payment via the Stripe API the moment that /start fires.
 
 Commands:
-    /start     Begin (or restart) the booking flow
+    /start     Begin (or restart) the funnel
     /help      List available commands
-    /bookings  (admin only) List confirmed bookings
+    /bookings  (admin only) List confirmed Panic Circle members
 
 Setup:
     1. pip install -r requirements.txt
@@ -88,89 +88,79 @@ BOOKINGS_FILE = os.path.join(DATA_DIR, "bookings.json")
 # logic further down the file.
 
 PACKAGES = {
-    "pkg_single": {
-        "label": "Single session",
-        "price_cents": 15000,
-        "description": "Single session — $150",
-    },
-    "pkg_package3": {
-        "label": "3-session package",
-        "price_cents": 40000,
-        "description": "3-session package — $400 (save $50)",
+    "pkg_circle": {
+        "label": "Panic Circle Membership",
+        "price_cents": 7900,
+        "description": "Panic Circle — $79/month",
+        "interval": "month",
     },
 }
 
-QUALIFYING_OPTIONS = [
-    ("screen2_yes", "Yep"),
-    ("screen2_no", "Not really"),
-]
-
-VALIDATION_RESPONSES = {
-    "screen2_yes": (
-        "Have you learned all the nervous system tricks...\n\n"
-        "but you want to just enjoy life and not have to constantly check if you are regulated?"
-    ),
-    "screen2_no": (
-        "Have you learned all the nervous system tricks...\n\n"
-        "but you want to just enjoy life and not have to constantly check if you are regulated?"
-    ),
-}
-
-BIO_TEXT = (
-    "<b>A little about me:</b>\n\n"
-    "• I've spent years working 1:1 with people on panic attacks and "
-    "nervous system regulation\n"
-    "• My approach is built on the actual neuroscience of panic — Selye, "
-    "Sapolsky, Porges, Levine — not generic advice\n"
-    "• I've been through this myself. This isn't theory I read about — "
-    "it's something I lived and came out the other side of\n\n"
-    "I built a course on this (<i>The Brain That Saved You</i>), but most "
-    "of the real shifts happen 1:1 — when we can go straight to what's "
-    "actually keeping your nervous system stuck."
+SCREEN1_TEXT = (
+    "Hi, I'm Oxana.\n\n"
+    "Can I ask you something?"
 )
 
-# Testimonials can be plain text quotes, or you can swap these for real
-# voice messages later — see README.md for how to grab a Telegram file_id
-# and send voice notes instead of text.
-TESTIMONIALS_TEXT = (
-    "I'll say this directly: a session with me isn't a script-reading "
-    "exercise. We follow what's actually happening for you.\n\n"
-    "Here's what people who've worked with me say:\n\n"
-    '<i>"I\'d tried therapy for two years. The first session with Oxana, '
-    'she found the actual pattern in twenty minutes."</i>\n\n'
-    '<i>"I didn\'t think 1:1 would feel different from a course. It was. '
-    'We got to the root in one call."</i>'
+SCREEN2_TEXT = (
+    "Every morning starts the same.\n\n"
+    "You wake up and have to regulate your nervous system before you can "
+    "start your day.\n\n"
+    "Breathing.\n"
+    "Meditation.\n"
+    "Grounding.\n"
+    "Cold showers.\n"
+    "Journaling.\n\n"
+    "You finally feel calm.\n\n"
+    "You finally feel better.\n\n"
+    "And then the next day...\n\n"
+    "it's back.\n\n"
+    "Like you have to start all over again."
 )
 
-SESSION_FORMAT_TEXT = (
-    "<b>Here's exactly what a session includes:</b>\n\n"
-    "🕐 60 minutes, one-on-one — video or voice call, your choice\n"
-    "🎯 We go straight to what's keeping your nervous system stuck right "
-    "now — no generic script\n"
-    "🛠 Real tools you can use the moment we hang up, not homework you'll "
-    "never open\n"
-    "📝 A short follow-up note after every session so nothing gets lost\n\n"
-    "This is the same work behind the techniques you might already know "
-    "from me — but built around your specific patterns, in real time."
+SCREEN3_TEXT = (
+    "You've learned all the nervous system tricks...\n\n"
+    "But do you just want to enjoy your life without constantly checking "
+    "if you're regulated?\n\n"
+    "Without wondering:\n\n"
+    '"Am I calm enough?"\n'
+    '"Am I safe enough?"\n'
+    '"Am I going to panic?"'
 )
 
-PRICING_TEXT = (
-    "<b>Here's what's included and what it costs:</b>\n\n"
-    "1️⃣ Direct 1:1 access to me — not a group, not a course, not a bot "
-    "script\n"
-    "2️⃣ A real map of your specific panic/anxiety pattern, not generic "
-    "advice\n"
-    "3️⃣ Tools chosen for what's actually happening in your body, tested "
-    "in the session itself\n"
-    "4️⃣ A written follow-up after every session\n"
-    "5️⃣ The option to message me between sessions if something comes "
-    "up\n\n"
-    f"💳 {PACKAGES['pkg_single']['description']}\n"
-    f"💳 {PACKAGES['pkg_package3']['description']} — most people need at "
-    "least 3 sessions to see the pattern actually shift\n\n"
-    "I only take a limited number of 1:1 clients each month so I can give "
-    "each person real attention — so if this is calling to you, don't "
-    "wait too long to grab a spot."
+SCREEN4_TEXT = (
+    "That's because calming symptoms and addressing the root cause of "
+    "what's causing the panic attacks are not the same thing.\n\n"
+    "Breathing can calm a panic attack.\n"
+    "Grounding can calm a panic attack.\n"
+    "Meditation can calm a panic attack.\n\n"
+    "But if the root cause is still there...\n\n"
+    "the panic usually comes back."
+)
+
+SCREEN5_TEXT = (
+    "Inside the Panic Circle you'll get:\n\n"
+    "✅ A private community of people who understand what you're going "
+    "through\n"
+    "✅ Nervous system resources and trainings\n"
+    "✅ A place to ask questions\n"
+    "✅ I answer questions once a day\n"
+    "✅ Support when you're struggling\n"
+    "✅ Wins from people who are getting their lives back"
+)
+
+# This is the price reveal — it runs right after Screen 5. The 1:1 mention
+# at the end is intentional: Panic Circle is the main offer, 1:1 is just a
+# small note for people who want more.
+OFFER_TEXT = (
+    "Here's how it works.\n\n"
+    "You join the Panic Circle.\n\n"
+    "No weekly calls. No pressure.\n\n"
+    "Just the group, the resources, and a question answered every single "
+    "day.\n\n"
+    f"💰 {PACKAGES['pkg_circle']['description']}\n"
+    "Cancel anytime.\n\n"
+    "P.S. If you ever want more than that — like one-on-one time with me "
+    "— just ask. I do that too, for people who want extra support."
 )
 
 
@@ -207,9 +197,12 @@ def save_bookings(data: dict) -> None:
 
 # ── Keyboards ─────────────────────────────────────────────────────────────────
 
-def qualifying_keyboard() -> InlineKeyboardMarkup:
+def yes_no_keyboard(yes_data: str, no_data: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton(label, callback_data=key)] for key, label in QUALIFYING_OPTIONS]
+        [
+            [InlineKeyboardButton("Yep", callback_data=yes_data)],
+            [InlineKeyboardButton("Not really", callback_data=no_data)],
+        ]
     )
 
 
@@ -220,7 +213,7 @@ def continue_keyboard(label: str, callback_data: str) -> InlineKeyboardMarkup:
 def cta_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
-            [InlineKeyboardButton("✅ Yes, let's book", callback_data="cta_yes")],
+            [InlineKeyboardButton("✅ I'm in", callback_data="cta_yes")],
             [InlineKeyboardButton("🤔 Not sure yet", callback_data="cta_unsure")],
             [InlineKeyboardButton("❓ I have a question", callback_data="cta_question")],
         ]
@@ -258,21 +251,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-    name = update.effective_user.first_name or ""
     await update.effective_message.reply_text(
-        "Imagine how frustrating this feels...\n\n"
-        "Every morning you wake up and have to regulate your nervous system before starting your day.\n\n"
-        "Breathing.\n"
-        "Meditation.\n"
-        "Grounding.\n"
-        "Cold showers.\n"
-        "Journaling.\n\n"
-        "You finally feel calm.\n\n"
-        "You finally feel better.\n\n"
-        "And then the next day...\n\n"
-        "it's back.\n\n"
-        "Like you have to start all over again.",
-        reply_markup=qualifying_keyboard(),
+        SCREEN1_TEXT,
+        reply_markup=continue_keyboard("Continue", "screen2"),
     )
 
 
@@ -292,50 +273,46 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     data = query.data
     message = query.message
 
-    if data in VALIDATION_RESPONSES:
+    if data == "screen2":
         await message.reply_text(
-            VALIDATION_RESPONSES[data] + "\n\nLet me tell you a bit about how I work.",
-            reply_markup=continue_keyboard("Continue", "step_bio"),
+            SCREEN2_TEXT,
+            reply_markup=yes_no_keyboard("screen2_yes", "screen2_no"),
         )
         return
 
-    if data == "step_bio":
+    if data in ("screen2_yes", "screen2_no"):
         await message.reply_text(
-            BIO_TEXT,
-            parse_mode="HTML",
-            reply_markup=continue_keyboard("See what real sessions look like", "step_proof"),
+            SCREEN3_TEXT,
+            reply_markup=yes_no_keyboard("screen3_yes", "screen3_no"),
         )
         return
 
-    if data == "step_proof":
+    if data in ("screen3_yes", "screen3_no"):
         await message.reply_text(
-            TESTIMONIALS_TEXT,
-            parse_mode="HTML",
-            reply_markup=continue_keyboard("👉 See how a session works", "step_format"),
+            SCREEN4_TEXT,
+            reply_markup=continue_keyboard("Continue", "screen5"),
         )
         return
 
-    if data == "step_format":
+    if data == "screen5":
         await message.reply_text(
-            SESSION_FORMAT_TEXT,
-            parse_mode="HTML",
-            reply_markup=continue_keyboard("💰 See pricing", "step_pricing"),
+            SCREEN5_TEXT,
+            reply_markup=continue_keyboard("Continue", "step_pricing"),
         )
         return
 
     if data == "step_pricing":
-        await message.reply_text(PRICING_TEXT, parse_mode="HTML", reply_markup=cta_keyboard())
+        await message.reply_text(OFFER_TEXT, reply_markup=cta_keyboard())
         return
 
     if data == "cta_yes":
-        await message.reply_text("Which works for you?", reply_markup=package_keyboard())
+        await message.reply_text("Tap below to join 👇", reply_markup=package_keyboard())
         return
 
     if data == "cta_unsure":
         await message.reply_text(
-            "Totally fair — this is a real decision, not a small one. 💙\n\n"
-            "No pressure. If you want to see the options anyway, they're "
-            "right here:",
+            "Totally fair. No pressure at all.\n\n"
+            "If you want to grab a spot anyway, here it is:",
             reply_markup=package_keyboard(),
         )
         return
@@ -362,14 +339,15 @@ async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, pac
 
     try:
         session = stripe.checkout.Session.create(
-            mode="payment",
+            mode="subscription",
             payment_method_types=["card"],
             line_items=[
                 {
                     "price_data": {
                         "currency": "usd",
-                        "product_data": {"name": f"1:1 Coaching — {package['label']}"},
+                        "product_data": {"name": package["label"]},
                         "unit_amount": package["price_cents"],
+                        "recurring": {"interval": package["interval"]},
                     },
                     "quantity": 1,
                 }
@@ -400,9 +378,9 @@ async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, pac
     save_pending(pending)
 
     await update.effective_message.reply_text(
-        "Great — here's your secure payment link. Once it's confirmed, "
-        "I'll send your booking link right here in this chat. 💙",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 Pay & Book", url=session.url)]]),
+        "Great — here's your payment link. Once it goes through, I'll "
+        "send your invite to the group right here in this chat. 💙",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 Join the Panic Circle", url=session.url)]]),
     )
 
 
@@ -419,7 +397,7 @@ async def handle_payment_return(update: Update, context: ContextTypes.DEFAULT_TY
 
     if record["status"] == "confirmed":
         await update.effective_message.reply_text(
-            f"You're already booked! 🎉 Here's your link again:\n\n{CALENDAR_LINK}"
+            f"You're already in! 🎉 Here's your group link again:\n\n{CALENDAR_LINK}"
         )
         return
 
@@ -446,15 +424,15 @@ async def handle_payment_return(update: Update, context: ContextTypes.DEFAULT_TY
 
         package = PACKAGES[record["package"]]
         await update.effective_message.reply_text(
-            "Payment confirmed! 🎉 Welcome aboard.\n\nHere's where to pick "
-            "your session time:",
+            "You're in! 🎉 Welcome to the Panic Circle.\n\nHere's your "
+            "invite link to the group:",
             reply_markup=InlineKeyboardMarkup(
-                [[InlineKeyboardButton("📅 Pick your time", url=CALENDAR_LINK)]]
+                [[InlineKeyboardButton("👉 Join the group", url=CALENDAR_LINK)]]
             ),
         )
         await notify_admin(
             context,
-            f"💰 New booking: {package['label']} — "
+            f"💰 New Panic Circle member: {package['label']} — "
             f"@{record.get('username') or record.get('user_id')} "
             f"({record.get('name')})",
         )
