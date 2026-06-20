@@ -83,6 +83,25 @@ PENDING_FILE = os.path.join(DATA_DIR, "pending_payments.json")
 BOOKINGS_FILE = os.path.join(DATA_DIR, "bookings.json")
 
 
+# ── Voice notes (optional) ────────────────────────────────────────────────────
+# Add your own voice notes here, one per screen. Leave a screen set to None
+# to skip it — the bot will just send the text like normal.
+#
+# How to fill these in:
+#   1. Record a voice note in Telegram and send it to your OWN bot.
+#   2. The bot will reply with a long code (the "file_id"). Copy it.
+#   3. Paste it here, in quotes, replacing the None for that screen.
+#   4. Commit and redeploy. Done — the bot will now play your voice note
+#      right before that screen's text every time.
+VOICE_NOTES = {
+    "screen2": None,
+    "screen3": None,
+    "screen4": None,
+    "screen5": None,
+    "step_pricing": None,
+}
+
+
 # ── Editable content ─────────────────────────────────────────────────────────
 # Everything below is copy you can freely rewrite without touching any of the
 # logic further down the file.
@@ -234,6 +253,20 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
         log.exception("Failed to notify admin")
 
 
+# ── Screens (text + optional voice note) ──────────────────────────────────────
+
+async def send_screen(message, screen_key: str, text: str, reply_markup) -> None:
+    """Sends a screen: plays the voice note for it first (if one is set in
+    VOICE_NOTES), then sends the text with its buttons."""
+    voice_id = VOICE_NOTES.get(screen_key)
+    if voice_id:
+        try:
+            await message.reply_voice(voice=voice_id)
+        except Exception:
+            log.exception(f"Failed to send voice note for {screen_key}")
+    await message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup)
+
+
 # ── /start ────────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -273,39 +306,23 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     message = query.message
 
     if data == "screen2":
-        await message.reply_text(
-            SCREEN2_TEXT,
-            parse_mode="HTML",
-            reply_markup=yes_no_keyboard("screen2_yes", "screen2_no"),
-        )
+        await send_screen(message, "screen2", SCREEN2_TEXT, yes_no_keyboard("screen2_yes", "screen2_no"))
         return
 
     if data in ("screen2_yes", "screen2_no"):
-        await message.reply_text(
-            SCREEN3_TEXT,
-            parse_mode="HTML",
-            reply_markup=yes_no_keyboard("screen3_yes", "screen3_no"),
-        )
+        await send_screen(message, "screen3", SCREEN3_TEXT, yes_no_keyboard("screen3_yes", "screen3_no"))
         return
 
     if data in ("screen3_yes", "screen3_no"):
-        await message.reply_text(
-            SCREEN4_TEXT,
-            parse_mode="HTML",
-            reply_markup=continue_keyboard("Continue", "screen5"),
-        )
+        await send_screen(message, "screen4", SCREEN4_TEXT, continue_keyboard("Continue", "screen5"))
         return
 
     if data == "screen5":
-        await message.reply_text(
-            SCREEN5_TEXT,
-            parse_mode="HTML",
-            reply_markup=continue_keyboard("Continue", "step_pricing"),
-        )
+        await send_screen(message, "screen5", SCREEN5_TEXT, continue_keyboard("Continue", "step_pricing"))
         return
 
     if data == "step_pricing":
-        await message.reply_text(OFFER_TEXT, parse_mode="HTML", reply_markup=cta_keyboard())
+        await send_screen(message, "step_pricing", OFFER_TEXT, cta_keyboard())
         return
 
     if data == "cta_yes":
@@ -449,6 +466,21 @@ async def handle_payment_return(update: Update, context: ContextTypes.DEFAULT_TY
         )
 
 
+# ── Voice note capture (admin only) ───────────────────────────────────────────
+# Send a voice note to your own bot, and it replies with the file_id you need
+# for VOICE_NOTES above. Only works for you (the admin) — everyone else's
+# voice notes are ignored.
+
+async def on_voice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_user.id != ADMIN_ID:
+        return
+    file_id = update.message.voice.file_id
+    await update.message.reply_text(
+        "Got it. Here's the file_id — copy this into VOICE_NOTES in the "
+        f"code:\n\n{file_id}"
+    )
+
+
 # ── Free text (question relay) ────────────────────────────────────────────────
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -500,6 +532,7 @@ def main() -> None:
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("bookings", bookings_command))
     app.add_handler(CallbackQueryHandler(on_callback))
+    app.add_handler(MessageHandler(filters.VOICE, on_voice))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     log.info("Bot starting...")
     app.run_polling()
