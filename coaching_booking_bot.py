@@ -103,8 +103,8 @@ SCREEN1_TEXT = (
 
 SCREEN2_TEXT = (
     "Every morning starts the same.\n\n"
-    "You wake up and have to regulate your nervous system before you can "
-    "start your day.\n\n"
+    "You wake up.\n\n"
+    "You do the work just to feel okay.\n\n"
     "Breathing.\n"
     "Meditation.\n"
     "Grounding.\n"
@@ -113,39 +113,38 @@ SCREEN2_TEXT = (
     "You finally feel calm.\n\n"
     "You finally feel better.\n\n"
     "And then the next day...\n\n"
-    "it's back.\n\n"
+    "<b>it's back.</b>\n\n"
     "Like you have to start all over again."
 )
 
 SCREEN3_TEXT = (
-    "You've learned all the nervous system tricks...\n\n"
-    "But do you just want to enjoy your life without constantly checking "
-    "if you're regulated?\n\n"
-    "Without wondering:\n\n"
-    '"Am I calm enough?"\n'
-    '"Am I safe enough?"\n'
-    '"Am I going to panic?"'
+    "You've tried all the tricks.\n\n"
+    "But do you just want to enjoy your life?\n\n"
+    "Without checking if you're okay first.\n\n"
+    "Without asking yourself:\n\n"
+    '<i>"Am I calm enough?"</i>\n'
+    '<i>"Am I safe enough?"</i>\n'
+    '<i>"Am I going to panic?"</i>'
 )
 
 SCREEN4_TEXT = (
-    "That's because calming symptoms and addressing the root cause of "
-    "what's causing the panic attacks are not the same thing.\n\n"
-    "Breathing can calm a panic attack.\n"
-    "Grounding can calm a panic attack.\n"
-    "Meditation can calm a panic attack.\n\n"
-    "But if the root cause is still there...\n\n"
-    "the panic usually comes back."
+    "Calming a panic attack and stopping it from coming back are not the "
+    "same thing.\n\n"
+    "Breathing calms it.\n"
+    "Grounding calms it.\n"
+    "Meditation calms it.\n\n"
+    "But if the real cause is still there...\n\n"
+    "<b>it comes back.</b>"
 )
 
 SCREEN5_TEXT = (
-    "Inside the Panic Circle you'll get:\n\n"
-    "✅ A private community of people who understand what you're going "
-    "through\n"
-    "✅ Nervous system resources and trainings\n"
-    "✅ A place to ask questions\n"
-    "✅ I answer questions once a day\n"
-    "✅ Support when you're struggling\n"
-    "✅ Wins from people who are getting their lives back"
+    "<b>Here's what's inside.</b>\n\n"
+    "People who get it.\n\n"
+    "Real tools that work.\n\n"
+    "A place to ask anything.\n\n"
+    "I answer you. Every day.\n\n"
+    "Backup on hard days.\n\n"
+    "Wins from people just like you."
 )
 
 # This is the price reveal — it runs right after Screen 5. The 1:1 mention
@@ -153,14 +152,14 @@ SCREEN5_TEXT = (
 # small note for people who want more.
 OFFER_TEXT = (
     "Here's how it works.\n\n"
-    "You join the Panic Circle.\n\n"
-    "No weekly calls. No pressure.\n\n"
-    "Just the group, the resources, and a question answered every single "
-    "day.\n\n"
-    f"💰 {PACKAGES['pkg_circle']['description']}\n"
-    "Cancel anytime.\n\n"
-    "P.S. If you ever want more than that — like one-on-one time with me "
-    "— just ask. I do that too, for people who want extra support."
+    "You join.\n\n"
+    "You're in the group the same day.\n\n"
+    "No calls to schedule.\n\n"
+    "No pressure to perform.\n\n"
+    "Just support. Real tools. One question answered by me, every day.\n\n"
+    f"💰 <b>{PACKAGES['pkg_circle']['description']}</b>\n"
+    "<b>Cancel anytime.</b> No contract.\n\n"
+    "P.S. Want more than that? I do one-on-one too. Just ask."
 )
 
 
@@ -276,6 +275,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if data == "screen2":
         await message.reply_text(
             SCREEN2_TEXT,
+            parse_mode="HTML",
             reply_markup=yes_no_keyboard("screen2_yes", "screen2_no"),
         )
         return
@@ -283,6 +283,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if data in ("screen2_yes", "screen2_no"):
         await message.reply_text(
             SCREEN3_TEXT,
+            parse_mode="HTML",
             reply_markup=yes_no_keyboard("screen3_yes", "screen3_no"),
         )
         return
@@ -290,6 +291,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if data in ("screen3_yes", "screen3_no"):
         await message.reply_text(
             SCREEN4_TEXT,
+            parse_mode="HTML",
             reply_markup=continue_keyboard("Continue", "screen5"),
         )
         return
@@ -297,12 +299,13 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     if data == "screen5":
         await message.reply_text(
             SCREEN5_TEXT,
+            parse_mode="HTML",
             reply_markup=continue_keyboard("Continue", "step_pricing"),
         )
         return
 
     if data == "step_pricing":
-        await message.reply_text(OFFER_TEXT, reply_markup=cta_keyboard())
+        await message.reply_text(OFFER_TEXT, parse_mode="HTML", reply_markup=cta_keyboard())
         return
 
     if data == "cta_yes":
@@ -311,8 +314,9 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     if data == "cta_unsure":
         await message.reply_text(
-            "Totally fair. No pressure at all.\n\n"
-            "If you want to grab a spot anyway, here it is:",
+            "Totally fair.\n\n"
+            "No pressure.\n\n"
+            "Here it is, if you change your mind:",
             reply_markup=package_keyboard(),
         )
         return
@@ -378,8 +382,8 @@ async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, pac
     save_pending(pending)
 
     await update.effective_message.reply_text(
-        "Great — here's your payment link. Once it goes through, I'll "
-        "send your invite to the group right here in this chat. 💙",
+        "Here's your payment link.\n\n"
+        "Once it goes through, I'll send your invite right here. 💙",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 Join the Panic Circle", url=session.url)]]),
     )
 
@@ -424,8 +428,9 @@ async def handle_payment_return(update: Update, context: ContextTypes.DEFAULT_TY
 
         package = PACKAGES[record["package"]]
         await update.effective_message.reply_text(
-            "You're in! 🎉 Welcome to the Panic Circle.\n\nHere's your "
-            "invite link to the group:",
+            "You're in! 🎉 <b>Welcome to the Panic Circle.</b>\n\nHere's "
+            "your invite link to the group:",
+            parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup(
                 [[InlineKeyboardButton("👉 Join the group", url=CALENDAR_LINK)]]
             ),
