@@ -1,0 +1,3 @@
+python-telegram-bot>=20,<21
+stripe>=7,<8
+python-dotenv>=1,<2

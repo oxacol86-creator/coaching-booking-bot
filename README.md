@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/29156770/README.md)
 # 1:1 Coaching Booking Bot
 
 A Telegram bot that runs leads through a short trust-building sequence
