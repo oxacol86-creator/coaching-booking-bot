@@ -262,15 +262,14 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
 # ── Screens (text + optional voice note) ──────────────────────────────────────
 
 async def send_screen(message, screen_key: str, text: str, reply_markup) -> None:
-    """Sends a screen: plays the voice note for it first (if one is set in
-    VOICE_NOTES), then sends the text with its buttons."""
+    """Sends a screen: sends the text with its buttons first, then plays the voice note (if one is set in VOICE_NOTES)."""
+    await message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup)
     voice_id = VOICE_NOTES.get(screen_key)
     if voice_id:
         try:
             await message.reply_voice(voice=voice_id)
         except Exception:
             log.exception(f"Failed to send voice note for {screen_key}")
-    await message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup)
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
