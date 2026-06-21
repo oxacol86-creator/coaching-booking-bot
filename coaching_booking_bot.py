@@ -121,21 +121,19 @@ SCREEN1_TEXT = (
 )
 
 SCREEN2_TEXT = (
-    "Every morning starts the same.\n\n"
-    "You wake up.\n\n"
-    "And you can already feel it building. 😮‍💨\n\n"
-    "Maybe your hands and feet go cold. Maybe you're shivering before "
-    "you even get up.\n\n"
-    "So you do the work.\n"
-    "🛁 A warm bath.\n"
-    "🌬️ Breathing.\n"
-    "🥶 Cold showers.\n"
-    "🧘 Whatever it takes.\n\n"
-    "You finally feel calm.\n\n"
-    "You finally feel better.\n\n"
-    "And then the next day...\n\n"
-    "<b>it's back.</b> 🔁\n\n"
-    "Like you have to start all over again."
+    "Hi, I'm Oxana and I've found what actually stops panic attacks "
+    "(not just calms them).\n\n"
+    "<b>How frustrating it is when you wake up in the morning hoping to "
+    "have a good day instead you viscerally feel a panic building...</b>\n\n"
+    "<b>You then start your \"calming\" routine:</b>\n\n"
+    "• Breathing\n"
+    "• Maybe a warm bath to warm up your shivering body\n"
+    "• Ice on the neck or hands?\n"
+    "• Vagus nerve exercises?\n"
+    "• Other nervous system regulating techniques...\n\n"
+    "<b>...just to feel normal...</b>\n\n"
+    "Other people just go about their days, while you feel betrayed by "
+    "your own body."
 )
 
 SCREEN3_TEXT = (
@@ -167,12 +165,12 @@ SCREEN5_TEXT = (
     "coming from. Not just managing it — figuring out how to stop it "
     "from coming back.\n\n"
     "Here's what's inside. 👇\n\n"
-    "🫂 People who get it.\n\n"
-    "🧠 Real tools that work.\n\n"
-    "💬 A place to ask anything.\n\n"
-    "📅 I answer you. Every day.\n\n"
-    "🤝 Backup on hard days.\n\n"
-    "🎉 Wins from people just like you."
+    "🫂 People who get it. Not strangers.\n\n"
+    "🧠 Videos, scripts, and tools you can use the same day.\n\n"
+    "💬 A place to ask anything, anytime.\n\n"
+    "📅 Every day I go through the chat and answer questions.\n\n"
+    "🤝 Backup the moment you need it, not three days later.\n\n"
+    "🎉 Wins from people just like you, so you can see it's possible."
 )
 
 # This is the price reveal — it runs right after Screen 5. The 1:1 mention
@@ -185,9 +183,13 @@ OFFER_TEXT = (
     "No calls to schedule.\n\n"
     "No pressure to perform.\n\n"
     "Just support. Real tools. One question answered by me, every day. 💬\n\n"
+    "You've probably already spent more than $79 on things that only "
+    "worked for a day. 🛁🥶\n\n"
     f"💰 <b>{PACKAGES['pkg_circle']['description']}</b>\n"
     "<b>Cancel anytime.</b> No contract. 🔓\n\n"
-    "P.S. Want more than that? I do one-on-one too. Just ask. 💛"
+    "That's less than one single session with me. And here, you get "
+    "me every single day — not just once.\n\n"
+    "P.S. Still want more than that? I do one-on-one too. Just ask. 💛"
 )
 
 
