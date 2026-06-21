@@ -262,14 +262,15 @@ async def notify_admin(context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
 # ── Screens (text + optional voice note) ──────────────────────────────────────
 
 async def send_screen(message, screen_key: str, text: str, reply_markup) -> None:
-    """Sends a screen: sends the text with its buttons first, then plays the voice note (if one is set in VOICE_NOTES)."""
-    await message.reply_text(text, parse_mode="HTML", reply_markup=reply_markup)
+    """Sends a screen: sends text first, then voice note, then buttons."""
+    await message.reply_text(text, parse_mode="HTML")
     voice_id = VOICE_NOTES.get(screen_key)
     if voice_id:
         try:
             await message.reply_voice(voice=voice_id)
         except Exception:
             log.exception(f"Failed to send voice note for {screen_key}")
+    await message.reply_text("", reply_markup=reply_markup)
 
 
 # ── /start ────────────────────────────────────────────────────────────────────
@@ -288,7 +289,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-    await send_screen(update.effective_message, "screen2", SCREEN2_TEXT, yes_no_keyboard("screen2_yes", "screen2_no"))
+    await send_screen(update.effective_message, "screen2", SCREEN2_TEXT, continue_keyboard("I feel this", "screen2_yes"))
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────
@@ -311,11 +312,11 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await send_screen(message, "screen2", SCREEN2_TEXT, yes_no_keyboard("screen2_yes", "screen2_no"))
         return
 
-    if data in ("screen2_yes", "screen2_no"):
-        await send_screen(message, "screen3", SCREEN3_TEXT, yes_no_keyboard("screen3_yes", "screen3_no"))
+    if data == "screen2_yes":
+        await send_screen(message, "screen3", SCREEN3_TEXT, continue_keyboard("I feel this", "screen3_yes"))
         return
 
-    if data in ("screen3_yes", "screen3_no"):
+    if data == "screen3_yes":
         await send_screen(message, "screen4", SCREEN4_TEXT, continue_keyboard("Continue", "screen5"))
         return
 
