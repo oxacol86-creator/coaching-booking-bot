@@ -115,23 +115,18 @@ PACKAGES = {
     },
 }
 
-SCREEN1_TEXT = (
-    "Hi, I'm Oxana. 👋\n\n"
-    "Can I ask you something?"
-)
-
 SCREEN2_TEXT = (
     "Hi, I'm Oxana and I've found what actually stops panic attacks "
     "(not just calms them).\n\n"
-    "<b>How frustrating it is when you wake up in the morning hoping to "
-    "have a good day instead you viscerally feel a panic building...</b>\n\n"
-    "<b>You then start your \"calming\" routine:</b>\n\n"
+    "<blockquote>How frustrating it is when you wake up in the morning hoping to "
+    "have a good day instead you viscerally feel a panic building...</blockquote>\n\n"
+    "<blockquote>You then start your \"calming\" routine:\n\n"
     "• Breathing\n"
     "• Maybe a warm bath to warm up your shivering body\n"
     "• Ice on the neck or hands?\n"
     "• Vagus nerve exercises?\n"
-    "• Other nervous system regulating techniques...\n\n"
-    "<b>...just to feel normal...</b>\n\n"
+    "• Other nervous system regulating techniques...</blockquote>\n\n"
+    "<blockquote>...just to feel normal...</blockquote>\n\n"
     "Other people just go about their days, while you feel betrayed by "
     "your own body."
 )
@@ -294,10 +289,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-    await update.effective_message.reply_text(
-        SCREEN1_TEXT,
-        reply_markup=continue_keyboard("Continue", "screen2"),
-    )
+    await send_screen(message, "screen2", SCREEN2_TEXT, yes_no_keyboard("screen2_yes", "screen2_no"))
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────
