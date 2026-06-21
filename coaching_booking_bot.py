@@ -289,7 +289,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             )
             return
 
-    await send_screen(message, "screen2", SCREEN2_TEXT, yes_no_keyboard("screen2_yes", "screen2_no"))
+    await send_screen(update.effective_message, "screen2", SCREEN2_TEXT, yes_no_keyboard("screen2_yes", "screen2_no"))
 
 
 # ── /help ─────────────────────────────────────────────────────────────────────
