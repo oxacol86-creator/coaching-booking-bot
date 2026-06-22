@@ -299,10 +299,10 @@ INTAKE_Q1_OPTIONS = [
 ]
 
 INTAKE_Q1_RESPONSES = {
-    "qual_panic": "That's one of the most disorienting things a body can do to you — and it's also one of the most treatable.",
-    "qual_anxiety": "Living with the volume turned up all the time is its own kind of exhausting.",
-    "qual_avoid": "Avoidance feels like safety in the moment, but it keeps the fear alive. That pattern can shift.",
-    "qual_unsure": "You don't need to have it figured out before we start. Most people show up exactly like this.",
+    "qual_panic": "Yeah. That feeling like your body's betraying you out of nowhere? I know it. And it's fixable — faster than you'd think.",
+    "qual_anxiety": "The hum that never turns off. I lived there for years. It's exhausting in a way people who haven't felt it just don't get.",
+    "qual_avoid": "Avoiding feels like the safe move. It's not — it just feeds the fear quietly. But that pattern breaks easier than it looks.",
+    "qual_unsure": "You don't need a clean answer. Most people who message me can't name it either. That's fine — we don't need that yet.",
 }
 
 INTAKE_Q2_OPTIONS = [
@@ -327,7 +327,7 @@ async def send_cheatsheet_and_menu(update: Update, context: ContextTypes.DEFAULT
                 chat_id=chat.id,
                 document=f,
                 filename="Nervous System Regulating Cheat Sheet.pdf",
-                caption="Here's your cheat sheet. 💙 Save it somewhere you can find it fast.",
+                caption="Here it is. 💙 Save it somewhere you'll actually find it at 2am.",
             )
     except FileNotFoundError:
         log.error("Cheat sheet PDF not found at %s", CHEATSHEET_PATH)
@@ -336,7 +336,7 @@ async def send_cheatsheet_and_menu(update: Update, context: ContextTypes.DEFAULT
         )
 
     await update.effective_message.reply_text(
-        "Whenever you need support, I'm right here. Choose where you'd like to start:",
+        "Okay — that's yours now. 💙 Whenever this hits, I'm right here. Pick where you want to start:",
         reply_markup=make_menu()
     )
 
@@ -380,10 +380,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     await update.effective_message.reply_text(
-        f"Hi{' ' + name if name else ''}! I'm Oxana. 💙\n\n"
-        "Before I send you the free Nervous System Regulating Cheat Sheet, "
-        "I want to understand where you're at right now.\n\n"
-        "<b>What's hitting hardest?</b>",
+        "How frustrating is it — you wake up hoping for a good day, and instead "
+        "you can <i>feel</i> a panic building. Viscerally.\n\n"
+        "So you start the routine:\n\n"
+        "• Breathing\n"
+        "• Maybe a warm bath, because your body won't stop shivering\n"
+        "• Ice on your neck or hands\n"
+        "• Vagus nerve tricks\n"
+        "• Whatever nervous-system technique you've collected by now\n\n"
+        "...just to feel normal.\n\n"
+        "Meanwhile everyone else just... goes about their day. And you feel "
+        "betrayed by your own body.",
+        parse_mode="HTML",
+    )
+    await update.effective_message.reply_text(
+        "Your cheat sheet's coming in a sec, I promise. 💙\n\n"
+        "First — quick gut check:\n\n"
+        "<b>What's hitting hardest right now?</b>",
         parse_mode="HTML",
         reply_markup=intake_q1_keyboard(),
     )
@@ -941,7 +954,7 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=None,
         )
         await message.reply_text(
-            "<b>How long has this been going on?</b>",
+            "<b>One more — how long has this been your normal?</b>",
             parse_mode="HTML",
             reply_markup=intake_q2_keyboard(),
         )
