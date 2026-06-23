@@ -1,12 +1,13 @@
 """
-Coaching Booking Bot — Full Edition
+Panic Circle Bot
 -------------------------------------
 A single Telegram bot that:
-  1. Delivers a free "Nervous System Regulating Cheat Sheet" after two short
-     intake questions (the lead-magnet entry point for cold traffic)
-  2. Offers a full menu of panic / nervous-system exercises (ported from
-     panic_bot.py), with optional daily reminders
-  3. Sells 1:1 coaching sessions via Stripe Checkout, reachable from the menu
+  1. Sells the Panic Circle — a $79/month, 20-person max private group —
+     through a short voice + text story sequence (Screens 2-5 + price)
+  2. After payment, generates a single-use invite link into the private
+     group automatically (no shared/reusable links)
+  3. Offers a full menu of panic / nervous-system exercises, a free cheat
+     sheet, and an optional 1:1 coaching upsell (mentioned only at the end)
 
 Commands:
   /start      - Begin (or resume) the bot
@@ -14,10 +15,10 @@ Commands:
   /panic, /breathe, /ground, /sigh, /relax, /hum, /cold, /valsalva,
   /orient, /push, /shake, /yawn, /walk, /hold, /smell, /butterfly, /belly
               - Individual exercises
-  /support    - Book a real session with Oxana
+  /support    - Book a real 1:1 session with Oxana
   /learn      - Mini course on panic symptoms
   /stopremind - Turn off daily reminders
-  /bookings   - (admin) list confirmed 1:1 coaching bookings
+  /bookings   - (admin) list confirmed 1:1 + Circle payments
   /users      - (admin) list bot users
   /broadcast  - (admin) message all users
 
@@ -27,7 +28,8 @@ Setup:
   3. Put nervous_system_cheat_sheet.pdf in the same folder as this file
   4. python coaching_booking_bot.py
 
-See README.md for full setup instructions.
+See README.md for full setup instructions, including the one-time step of
+making this bot an admin of your private Panic Circle group.
 """
 
 import asyncio
@@ -75,9 +77,20 @@ BOT_USERNAME = _require_env("TELEGRAM_BOT_USERNAME").lstrip("@")
 ADMIN_ID = int(_require_env("ADMIN_TELEGRAM_ID"))
 stripe.api_key = _require_env("STRIPE_SECRET_KEY")
 
+# Fallback link sent if the bot can't auto-generate a single-use invite
+# (e.g. it hasn't been made an admin of the group yet). Set this to a
+# regular group invite link as a safety net — see README.
 CALENDAR_LINK = os.environ.get(
     "CALENDAR_LINK", "https://calendar.app.google/UdVSNtXD6Xnfyord9"
 )
+
+# Optional but recommended: the numeric chat ID of your private Panic
+# Circle group. When set (and the bot is an admin there), every new payer
+# gets their own one-time invite link instead of a reusable one.
+# See README for how to find this number.
+PANIC_CIRCLE_GROUP_ID = os.environ.get("PANIC_CIRCLE_GROUP_ID")
+if PANIC_CIRCLE_GROUP_ID:
+    PANIC_CIRCLE_GROUP_ID = int(PANIC_CIRCLE_GROUP_ID)
 
 DATA_DIR = os.environ.get("DATA_DIR", ".")
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -158,13 +171,17 @@ def persistent_keyboard():
     return ReplyKeyboardMarkup([["Menu"]], resize_keyboard=True, is_persistent=True)
 
 
-def make_menu(show_reminder=False):
+def make_menu(show_reminder=False, is_member=False):
     keyboard = [
         [InlineKeyboardButton("🚨 In Panic Now", callback_data="menu_panic")],
         [InlineKeyboardButton("🌿 Calm My Nervous System", callback_data="menu_ns")],
         [InlineKeyboardButton("📖 Learn & Understand", callback_data="learn_menu")],
-        [InlineKeyboardButton("💬 Book 1:1 Coaching", callback_data="book_coaching")],
+        [InlineKeyboardButton("📄 Free Cheat Sheet", callback_data="get_cheatsheet")],
     ]
+    if is_member:
+        keyboard.append([InlineKeyboardButton("💬 Ask about 1:1 coaching", callback_data="book_coaching")])
+    else:
+        keyboard.append([InlineKeyboardButton("💛 Join the Panic Circle", callback_data="screen2")])
     if show_reminder:
         keyboard.append([
             InlineKeyboardButton("🔔 Remind me daily", callback_data="remind_yes"),
@@ -222,36 +239,20 @@ def timezone_keyboard():
     return InlineKeyboardMarkup(keyboard)
 
 
-# ── send_steps / send_followup ───────────────────────────────────────────────
-
-async def send_followup(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.effective_message.reply_text(
-        "How are you feeling now? 💙\n\nIf you'd like to try something else, choose below:",
-        reply_markup=make_menu()
-    )
-    user_id = str(update.effective_user.id)
-    prefs = load_prefs()
-    if user_id not in prefs or "utc_offset" not in prefs.get(user_id, {}):
-        reminder_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Yes please ✅", callback_data="remind_yes"),
-             InlineKeyboardButton("No thanks", callback_data="remind_no")]
-        ])
-        await update.effective_message.reply_text(
-            "Would you like a gentle reminder like this every day? 💙",
-            reply_markup=reminder_keyboard
-        )
-
+# ── send_steps (exercises) ────────────────────────────────────────────────────
 
 async def send_steps(steps, delays, update, context, is_ns=False):
     user_id = str(update.effective_user.id)
     prefs = load_prefs()
     show_reminder = is_ns and "utc_offset" not in prefs.get(user_id, {})
+    is_member = prefs.get(user_id, {}).get("circle_member", False)
     formatted = "\n\n".join(f"<blockquote>{step}</blockquote>" for step in steps)
     formatted += "\n\n─────────────────\n\nYou did that. 💙\n\nTake a moment. When you're ready — choose what feels right:"
     if show_reminder:
         formatted += "\n\n🔔 Want a daily reminder like this?"
     await update.effective_message.reply_text(
-        formatted, parse_mode="HTML", reply_markup=make_menu(show_reminder=show_reminder)
+        formatted, parse_mode="HTML",
+        reply_markup=make_menu(show_reminder=show_reminder, is_member=is_member)
     )
 
 
@@ -289,37 +290,109 @@ def load_all_reminders(app):
             schedule_reminder(app, data["chat_id"], data["utc_offset"])
 
 
-# ── Intake (cheat sheet lead magnet) ─────────────────────────────────────────
+# ── Voice notes ────────────────────────────────────────────────────────────────
+# Drop in file_ids as you record them. Screens with no file_id just skip the
+# voice note and show text only — nothing breaks either way.
 
-INTAKE_Q1_OPTIONS = [
-    ("qual_panic", "😰 Panic attacks, often"),
-    ("qual_anxiety", "🌀 Anxiety that never fully turns off"),
-    ("qual_avoid", "🚪 Avoiding life because of the fear"),
-    ("qual_unsure", "😮‍💨 Honestly, just exhausted by all of it"),
-]
-
-INTAKE_Q1_RESPONSES = {
-    "qual_panic": "Yeah. That feeling like your body's betraying you out of nowhere? I know it. And it's fixable — faster than you'd think.",
-    "qual_anxiety": "The hum that never turns off. I lived there for years. It's exhausting in a way people who haven't felt it just don't get.",
-    "qual_avoid": "Avoiding feels like the safe move. It's not — it just feeds the fear quietly. But that pattern breaks easier than it looks.",
-    "qual_unsure": "You don't need a clean answer. Most people who message me can't name it either. That's fine — we don't need that yet.",
+VOICE_NOTES = {
+    "screen2": "AwACAgEAAxkBAAMqajaMEjumzp2scWEoC8yO2Cs2_ZYAAqsGAAKRwrBFarK4028IeCk8BA",
+    "screen3": "AwACAgEAAxkBAAMuajaMsenjKSxy6RRM4Inu4YGT5uUAAqwGAAKRwrBF5XiWI5aOQqI8BA",
+    "screen4": "AwACAgEAAxkBAAMyajaNI6KSKh8I2x07wptKw3UF0jIAAq0GAAKRwrBFh1LVpKczQUs8BA",
+    "screen5": "AwACAgEAAxkBAAM6ajaP1yLwSDGjqaa-aeP9SC06qnYAArEGAAKRwrBFP21dHvQC3cM8BA",
+    # "price": "",  # record this one and drop the file_id in here
 }
 
-INTAKE_Q2_OPTIONS = [
-    ("dur_new", "Just started"),
-    ("dur_months", "A few months"),
-    ("dur_years", "Years"),
-    ("dur_onoff", "On and off for a long time"),
-]
-
-def intake_q1_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=key)] for key, label in INTAKE_Q1_OPTIONS])
-
-def intake_q2_keyboard():
-    return InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=key)] for key, label in INTAKE_Q2_OPTIONS])
+async def send_voice_if_set(screen_key, chat_id, context):
+    file_id = VOICE_NOTES.get(screen_key)
+    if not file_id:
+        return
+    try:
+        await context.bot.send_voice(chat_id=chat_id, voice=file_id)
+    except Exception:
+        log.exception("Failed to send voice note for %s", screen_key)
 
 
-async def send_cheatsheet_and_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def voice_capture(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin-only: reply with the file_id of any voice note sent to the bot,
+    so new screens' voice notes can be grabbed easily."""
+    if update.effective_user.id != ADMIN_ID:
+        return
+    file_id = update.effective_message.voice.file_id
+    await update.effective_message.reply_text(f"file_id:\n{file_id}")
+
+
+# ── Panic Circle funnel (Screens 2-5 + price) ────────────────────────────────
+
+SCREEN2_TEXT = (
+    "<blockquote>Every morning starts the same.\n\n"
+    "You wake up. Before you even get out of bed, you're already doing the work.\n\n"
+    "Breathing. Meditation. Grounding. Cold showers. Journaling.\n\n"
+    "You finally feel calm. You finally feel okay.\n\n"
+    "And then the next day...\n\n"
+    "<b>it's back.</b>\n\n"
+    "Like you have to start all over again.</blockquote>"
+)
+
+SCREEN3_TEXT = (
+    "<blockquote>You know all the tricks by now. Breathing. Grounding. Cold water. All of it.\n\n"
+    "But be honest with yourself for a second —\n\n"
+    "<i>is this just your life now? Doing the tricks every single morning just to feel normal?</i>\n\n"
+    "I didn't want to manage it anymore.\n\n"
+    "I wanted it gone.</blockquote>"
+)
+
+SCREEN4_TEXT = (
+    "<blockquote>Here's the part that changed everything for me.\n\n"
+    "Calming a panic attack, and stopping it from coming back — not the same thing.\n\n"
+    "Breathing calms it. Grounding calms it. Cold water calms it.\n\n"
+    "But if whatever's underneath is still there...\n\n"
+    "<b>it comes back.</b>\n\n"
+    "Every time.\n\n"
+    "That's when I stopped just putting out the fire, and started asking why it kept starting.</blockquote>"
+)
+
+SCREEN5_TEXT = (
+    "<b>So I built the Panic Circle.</b>\n\n"
+    "Not a course. You don't watch me talk for 40 minutes and close the tab.\n\n"
+    "🫂 People who actually get it — not strangers, people living this right now\n"
+    "💬 A place to ask questions\n"
+    "📅 I go through the chat and answer them — every day\n"
+    "🤝 You watch other people figure it out too, which teaches you more than you'd think\n"
+    "🛠 Real tools, the same day you ask\n\n"
+    "Not managing it forever. Actually working on why it's there."
+)
+
+PRICE_TEXT = (
+    "<b>Panic Circle — $79 a month.</b>\n\n"
+    "Less than one single session with me. Less than what you've probably already "
+    "spent on stuff that didn't stick.\n\n"
+    "<b>Cancel any time. No contract. No catch.</b>\n\n"
+    "I'm not promising you'll never panic again — nobody honest can promise that. "
+    "I'm promising real answers, every day, from someone who's actually been there. "
+    "Not a video from two years ago.\n\n"
+    "Want more — actual 1:1 time with me too? Just ask, that's available separately."
+)
+
+
+def single_button(label, callback_data):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=callback_data)]])
+
+
+def price_cta_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("✅ Yes, let's do this", callback_data="cta_yes")],
+        [InlineKeyboardButton("🤔 Not sure yet", callback_data="cta_unsure")],
+        [InlineKeyboardButton("❓ I have a question", callback_data="cta_question")],
+    ])
+
+
+async def send_screen(update_or_message, chat_id, screen_key, text, keyboard, context):
+    message = update_or_message
+    await message.reply_text(text, parse_mode="HTML", reply_markup=keyboard)
+    await send_voice_if_set(screen_key, chat_id, context)
+
+
+async def send_cheatsheet(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     try:
         with open(CHEATSHEET_PATH, "rb") as f:
@@ -335,11 +408,6 @@ async def send_cheatsheet_and_menu(update: Update, context: ContextTypes.DEFAULT
             "I couldn't find the cheat sheet file just now — message me directly and I'll send it personally. 💙"
         )
 
-    await update.effective_message.reply_text(
-        "Okay — that's yours now. 💙 Whenever this hits, I'm right here. Pick where you want to start:",
-        reply_markup=make_menu()
-    )
-
 
 # ── /start ────────────────────────────────────────────────────────────────────
 
@@ -353,7 +421,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if payload == "cancelled":
             await update.effective_message.reply_text(
                 "No worries — the offer's still here whenever you're ready. 💙",
-                reply_markup=package_keyboard(),
+                reply_markup=single_button("💛 Join the Panic Circle", "screen2"),
             )
             return
 
@@ -361,44 +429,42 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     user_id = str(user.id)
     name = user.first_name or ""
+    chat_id = update.effective_message.chat_id
     prefs = load_prefs()
 
     if user_id not in prefs:
-        prefs[user_id] = {"chat_id": update.effective_message.chat_id, "name": name}
+        prefs[user_id] = {"chat_id": chat_id, "name": name}
         save_prefs(prefs)
 
-    already_known = "qual_answer" in prefs.get(user_id, {})
+    record = prefs[user_id]
 
-    if already_known:
+    if record.get("circle_member"):
         await update.effective_message.reply_text(
-            f"Welcome back{' ' + name if name else ''}. 💙\n\n"
+            f"Welcome back{' ' + name if name else ''}. 💙 You're already in the Circle.\n\n"
             "Use the Menu button below whenever you need me.\n\n"
             "⚠️ This bot is a self-help tool, not a substitute for professional help.",
             reply_markup=persistent_keyboard()
         )
-        await update.effective_message.reply_text("Choose where you'd like to start:", reply_markup=make_menu())
+        await update.effective_message.reply_text(
+            "Choose where you'd like to start:", reply_markup=make_menu(is_member=True)
+        )
         return
 
-    await update.effective_message.reply_text(
-        "How frustrating is it — you wake up hoping for a good day, and instead "
-        "you can <i>feel</i> a panic building. Viscerally.\n\n"
-        "So you start the routine:\n\n"
-        "• Breathing\n"
-        "• Maybe a warm bath, because your body won't stop shivering\n"
-        "• Ice on your neck or hands\n"
-        "• Vagus nerve tricks\n"
-        "• Whatever nervous-system technique you've collected by now\n\n"
-        "...just to feel normal.\n\n"
-        "Meanwhile everyone else just... goes about their day. And you feel "
-        "betrayed by your own body.",
-        parse_mode="HTML",
-    )
-    await update.effective_message.reply_text(
-        "Your cheat sheet's coming in a sec, I promise. 💙\n\n"
-        "First — quick gut check:\n\n"
-        "<b>What's hitting hardest right now?</b>",
-        parse_mode="HTML",
-        reply_markup=intake_q1_keyboard(),
+    if record.get("seen_funnel"):
+        await update.effective_message.reply_text(
+            f"Hey{' ' + name if name else ''}. 💙 Good to see you again.",
+            reply_markup=persistent_keyboard()
+        )
+        await update.effective_message.reply_text(
+            "Choose where you'd like to start:", reply_markup=make_menu()
+        )
+        return
+
+    record["seen_funnel"] = True
+    save_prefs(prefs)
+    await send_screen(
+        update.effective_message, chat_id, "screen2", SCREEN2_TEXT,
+        single_button("I feel this", "screen3"), context,
     )
 
 
@@ -416,14 +482,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/hold — Self-holding\n/butterfly — Butterfly hug\n/belly — Belly breathing\n\n"
         "🚶 Movement\n/walk — Mindful walking\n\n"
         "🧠 Grounding\n/orient — Slow orienting\n/ground — 5-4-3-2-1\n\n"
-        "🤝 Human support\n/support — Book a real session with Oxana\n\n"
+        "🤝 Human support\n/support — Book a real 1:1 session with Oxana\n\n"
         "📖 /learn — Understand your symptoms\n"
         "🔕 /stopremind — Turn off daily reminders\n\n"
         "You don't have to face this alone. Tap any command above."
     )
 
 
-# ── Exercises (ported from panic_bot.py) ─────────────────────────────────────
+# ── Exercises ──────────────────────────────────────────────────────────────────
 
 PANIC_STEPS = [
     "🛑 Stop and notice — you are having a panic attack.\n\nPanic attacks are intense but not dangerous. Your body is trying to protect you — it has made a mistake, but you are safe.\n\nLet's get through this together. First:\n\n👉 Plant both feet flat on the floor.\nFeel the ground underneath you. It's solid. You're supported.",
@@ -746,8 +812,8 @@ async def users_command(update, context):
     for uid, data in prefs.items():
         name = data.get("name", "unknown")
         reminder = "🔔" if "utc_offset" in data else "—"
-        qual = data.get("qual_answer", "—")
-        lines.append(f"{reminder} {name} (id: {uid}) — {qual}")
+        member = "💛" if data.get("circle_member") else "—"
+        lines.append(f"{member}{reminder} {name} (id: {uid})")
     await update.effective_message.reply_text(f"👥 Users ({len(prefs)} total):\n\n" + "\n".join(lines))
 
 async def broadcast_command(update, context):
@@ -772,16 +838,16 @@ async def bookings_command(update, context):
         return
     bookings = load_bookings()
     if not bookings:
-        await update.effective_message.reply_text("No confirmed bookings yet.")
+        await update.effective_message.reply_text("No confirmed payments yet.")
         return
     lines = []
     for b in bookings.values():
-        package = PACKAGES.get(b["package"], {}).get("label", b["package"])
-        lines.append(f"• {package} — @{b.get('username') or b.get('user_id')} ({b.get('confirmed_at', '')[:10]})")
-    await update.effective_message.reply_text(f"📋 Confirmed bookings ({len(bookings)}):\n\n" + "\n".join(lines))
+        label = b.get("label", b.get("package", "Panic Circle"))
+        lines.append(f"• {label} — @{b.get('username') or b.get('user_id')} ({b.get('confirmed_at', '')[:10]})")
+    await update.effective_message.reply_text(f"📋 Confirmed payments ({len(bookings)}):\n\n" + "\n".join(lines))
 
 
-# ── Sales funnel content (1:1 coaching) ───────────────────────────────────────
+# ── Optional 1:1 coaching upsell (unchanged content, reused) ──────────────────
 
 PACKAGES = {
     "pkg_single": {"label": "Single session", "price_cents": 15000, "description": "Single session — $150"},
@@ -831,8 +897,8 @@ def continue_keyboard(label, callback_data):
 
 def cta_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Yes, let's book", callback_data="cta_yes")],
-        [InlineKeyboardButton("🤔 Not sure yet", callback_data="cta_unsure")],
+        [InlineKeyboardButton("✅ Yes, let's book", callback_data="cta_yes_1on1")],
+        [InlineKeyboardButton("🤔 Not sure yet", callback_data="cta_unsure_1on1")],
         [InlineKeyboardButton("❓ I have a question", callback_data="cta_question")],
     ])
 
@@ -840,9 +906,136 @@ def package_keyboard():
     return InlineKeyboardMarkup([[InlineKeyboardButton(p["description"], callback_data=key)] for key, p in PACKAGES.items()])
 
 
-# ── Payment ────────────────────────────────────────────────────────────────────
+# ── Payment: Panic Circle subscription ($79/mo) ──────────────────────────────
 
-async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, package_key: str) -> None:
+async def create_circle_payment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = update.effective_user
+    chat_id = update.effective_chat.id
+    short_id = secrets.token_urlsafe(8)
+
+    try:
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            payment_method_types=["card"],
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "product_data": {"name": "Panic Circle — Monthly Membership"},
+                    "unit_amount": 7900,
+                    "recurring": {"interval": "month"},
+                },
+                "quantity": 1,
+            }],
+            success_url=f"https://t.me/{BOT_USERNAME}?start=paid_{short_id}",
+            cancel_url=f"https://t.me/{BOT_USERNAME}?start=cancelled",
+            metadata={"telegram_user_id": str(user.id), "product": "panic_circle"},
+        )
+    except Exception:
+        log.exception("Stripe session creation failed")
+        await update.effective_message.reply_text(
+            "Something went wrong setting up the payment. Please try again in a moment, or message me directly. 💙"
+        )
+        return
+
+    pending = load_pending()
+    pending[short_id] = {
+        "stripe_session_id": session.id, "user_id": user.id, "chat_id": chat_id,
+        "username": user.username, "name": user.first_name, "product": "panic_circle",
+        "label": "Panic Circle membership",
+        "created_at": datetime.now(timezone.utc).isoformat(), "status": "pending",
+    }
+    save_pending(pending)
+
+    await update.effective_message.reply_text(
+        "Here's your secure payment link. Once it's confirmed, I'll send your group invite right here in this chat. 💙",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 Pay & Join", url=session.url)]]),
+    )
+
+
+async def get_circle_invite_link(context: ContextTypes.DEFAULT_TYPE, short_id: str) -> str:
+    """Returns a single-use invite link if possible, otherwise the static fallback."""
+    if not PANIC_CIRCLE_GROUP_ID:
+        return CALENDAR_LINK
+    try:
+        invite = await context.bot.create_chat_invite_link(
+            chat_id=PANIC_CIRCLE_GROUP_ID,
+            member_limit=1,
+            name=f"member-{short_id}",
+        )
+        return invite.invite_link
+    except Exception:
+        log.exception("Could not create single-use invite link, using fallback")
+        await notify_admin(
+            context,
+            "⚠️ Couldn't auto-create a group invite link — sent the fallback "
+            "link instead. Check that the bot is an admin of the Panic Circle "
+            "group with 'Invite Users via Link' permission.",
+        )
+        return CALENDAR_LINK
+
+
+async def handle_payment_return(update: Update, context: ContextTypes.DEFAULT_TYPE, short_id: str) -> None:
+    pending = load_pending()
+    record = pending.get(short_id)
+
+    if not record:
+        await update.effective_message.reply_text(
+            "I can't find that payment session. If you completed payment, message me directly and I'll sort it out right away. 💙"
+        )
+        return
+
+    if record["status"] == "confirmed":
+        link = record.get("invite_link", CALENDAR_LINK)
+        await update.effective_message.reply_text(f"You're already in! 🎉 Here's your link again:\n\n{link}")
+        return
+
+    try:
+        session = stripe.checkout.Session.retrieve(record["stripe_session_id"])
+    except Exception:
+        log.exception("Stripe session retrieval failed")
+        await update.effective_message.reply_text(
+            "I couldn't verify the payment just now. If you completed it, give it a moment and try /start again, or message me directly. 💙"
+        )
+        return
+
+    paid = session.payment_status == "paid" or getattr(session, "status", None) == "complete"
+    if paid:
+        invite_link = await get_circle_invite_link(context, short_id)
+
+        record["status"] = "confirmed"
+        record["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+        record["invite_link"] = invite_link
+        pending[short_id] = record
+        save_pending(pending)
+
+        bookings = load_bookings()
+        bookings[short_id] = record
+        save_bookings(bookings)
+
+        user_id = str(record["user_id"])
+        prefs = load_prefs()
+        prefs.setdefault(user_id, {})["circle_member"] = True
+        save_prefs(prefs)
+
+        await update.effective_message.reply_text(
+            "<b>Payment confirmed! 🎉 Welcome to the Panic Circle.</b>\n\n"
+            "Here's your link to join — it only works once, so it's just for you:",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💛 Join the Group", url=invite_link)]]),
+        )
+        await notify_admin(
+            context,
+            f"💰 New Panic Circle member: @{record.get('username') or record.get('user_id')} ({record.get('name')})",
+        )
+    else:
+        await update.effective_message.reply_text(
+            "Looks like the payment isn't complete yet. If you already paid, give it a minute and tap the link again, or message me directly. 💙"
+        )
+
+
+# ── Payment: optional 1:1 coaching (unchanged logic, one-time payment) ───────
+
+async def create_1on1_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, package_key: str) -> None:
     user = update.effective_user
     chat_id = update.effective_chat.id
     package = PACKAGES[package_key]
@@ -875,6 +1068,7 @@ async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, pac
     pending[short_id] = {
         "stripe_session_id": session.id, "user_id": user.id, "chat_id": chat_id,
         "username": user.username, "name": user.first_name, "package": package_key,
+        "product": "1on1", "label": package["label"],
         "created_at": datetime.now(timezone.utc).isoformat(), "status": "pending",
     }
     save_pending(pending)
@@ -883,54 +1077,6 @@ async def create_payment(update: Update, context: ContextTypes.DEFAULT_TYPE, pac
         "Great — here's your secure payment link. Once it's confirmed, I'll send your booking link right here in this chat. 💙",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("💳 Pay & Book", url=session.url)]]),
     )
-
-
-async def handle_payment_return(update: Update, context: ContextTypes.DEFAULT_TYPE, short_id: str) -> None:
-    pending = load_pending()
-    record = pending.get(short_id)
-
-    if not record:
-        await update.effective_message.reply_text(
-            "I can't find that payment session. If you completed payment, message me directly and I'll sort it out right away. 💙"
-        )
-        return
-
-    if record["status"] == "confirmed":
-        await update.effective_message.reply_text(f"You're already booked! 🎉 Here's your link again:\n\n{CALENDAR_LINK}")
-        return
-
-    try:
-        session = stripe.checkout.Session.retrieve(record["stripe_session_id"])
-    except Exception:
-        log.exception("Stripe session retrieval failed")
-        await update.effective_message.reply_text(
-            "I couldn't verify the payment just now. If you completed it, give it a moment and try /start again, or message me directly. 💙"
-        )
-        return
-
-    if session.payment_status == "paid":
-        record["status"] = "confirmed"
-        record["confirmed_at"] = datetime.now(timezone.utc).isoformat()
-        pending[short_id] = record
-        save_pending(pending)
-
-        bookings = load_bookings()
-        bookings[short_id] = record
-        save_bookings(bookings)
-
-        package = PACKAGES[record["package"]]
-        await update.effective_message.reply_text(
-            "Payment confirmed! 🎉 Welcome aboard.\n\nHere's where to pick your session time:",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📅 Pick your time", url=CALENDAR_LINK)]]),
-        )
-        await notify_admin(
-            context,
-            f"💰 New booking: {package['label']} — @{record.get('username') or record.get('user_id')} ({record.get('name')})",
-        )
-    else:
-        await update.effective_message.reply_text(
-            "Looks like the payment isn't complete yet. If you already paid, give it a minute and tap the link again, or message me directly. 💙"
-        )
 
 
 # ── Callback router ────────────────────────────────────────────────────────────
@@ -942,38 +1088,47 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     data = query.data
     message = query.message
+    chat_id = message.chat_id
     user_id = str(query.from_user.id)
 
-    # Intake Q1
-    if data in INTAKE_Q1_RESPONSES:
-        prefs = load_prefs()
-        prefs.setdefault(user_id, {})["qual_answer"] = data
-        save_prefs(prefs)
+    # Panic Circle funnel
+    if data == "screen2":
+        await send_screen(message, chat_id, "screen2", SCREEN2_TEXT, single_button("I feel this", "screen3"), context)
+        return
+    if data == "screen3":
+        await send_screen(message, chat_id, "screen3", SCREEN3_TEXT, single_button("I feel this", "screen4"), context)
+        return
+    if data == "screen4":
+        await send_screen(message, chat_id, "screen4", SCREEN4_TEXT, single_button("Continue", "screen5"), context)
+        return
+    if data == "screen5":
+        await send_screen(message, chat_id, "screen5", SCREEN5_TEXT, single_button("Continue", "price"), context)
+        return
+    if data == "price":
+        await send_screen(message, chat_id, "price", PRICE_TEXT, price_cta_keyboard(), context)
+        return
+    if data == "cta_yes":
+        await create_circle_payment(update, context)
+        return
+    if data == "cta_unsure":
         await message.reply_text(
-            INTAKE_Q1_RESPONSES[data] + "\n\nOne more quick one —",
-            reply_markup=None,
+            "Totally fair — this is a real decision, not a small one. 💙\n\n"
+            "Here's something free in the meantime, no strings attached:",
         )
-        await message.reply_text(
-            "<b>One more — how long has this been your normal?</b>",
-            parse_mode="HTML",
-            reply_markup=intake_q2_keyboard(),
-        )
+        await send_cheatsheet(update, context)
+        await message.reply_text("Whenever you're ready, I'm right here:", reply_markup=make_menu())
+        return
+    if data == "cta_question":
+        context.user_data["awaiting_question"] = True
+        await message.reply_text("Type your question below and I'll personally get back to you. 💙")
         return
 
-    # Intake Q2 -> deliver cheat sheet + menu
-    if data in dict(INTAKE_Q2_OPTIONS):
-        prefs = load_prefs()
-        prefs.setdefault(user_id, {})["duration_answer"] = data
-        save_prefs(prefs)
-        await notify_admin(
-            context,
-            f"🆕 New lead: {query.from_user.first_name} (@{query.from_user.username or query.from_user.id}) — "
-            f"{prefs[user_id].get('qual_answer')}, {data}",
-        )
-        await send_cheatsheet_and_menu(update, context)
+    # Free cheat sheet from the menu
+    if data == "get_cheatsheet":
+        await send_cheatsheet(update, context)
         return
 
-    # Sales funnel
+    # Optional 1:1 coaching upsell
     if data == "book_coaching":
         await message.reply_text(BIO_TEXT, parse_mode="HTML",
                                   reply_markup=continue_keyboard("See what real sessions look like", "step_proof"))
@@ -989,21 +1144,17 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if data == "step_pricing":
         await message.reply_text(PRICING_TEXT, parse_mode="HTML", reply_markup=cta_keyboard())
         return
-    if data == "cta_yes":
+    if data == "cta_yes_1on1":
         await message.reply_text("Which works for you?", reply_markup=package_keyboard())
         return
-    if data == "cta_unsure":
+    if data == "cta_unsure_1on1":
         await message.reply_text(
             "Totally fair — this is a real decision, not a small one. 💙\n\nNo pressure. If you want to see the options anyway, they're right here:",
             reply_markup=package_keyboard(),
         )
         return
-    if data == "cta_question":
-        context.user_data["awaiting_question"] = True
-        await message.reply_text("Type your question below and I'll personally get back to you. 💙")
-        return
     if data in PACKAGES:
-        await create_payment(update, context, data)
+        await create_1on1_payment(update, context, data)
         return
 
     # Exercise menus
@@ -1029,7 +1180,9 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML", reply_markup=make_ns_menu())
         return
     if data == "back_menu":
-        await message.reply_text("Choose where you'd like to go 💙", reply_markup=make_menu())
+        prefs = load_prefs()
+        is_member = prefs.get(user_id, {}).get("circle_member", False)
+        await message.reply_text("Choose where you'd like to go 💙", reply_markup=make_menu(is_member=is_member))
         return
     if data == "learn_menu":
         await message.reply_text(
@@ -1038,7 +1191,6 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if data.startswith("tz_"):
         utc_offset = int(data[3:])
-        chat_id = message.chat_id
         prefs = load_prefs()
         prefs.setdefault(user_id, {})
         prefs[user_id]["chat_id"] = chat_id
@@ -1055,9 +1207,16 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ── Free text ──────────────────────────────────────────────────────────────────
 
 async def menu_button(update, context):
-    await update.effective_message.reply_text("Choose an exercise 💙", reply_markup=make_menu())
+    user_id = str(update.effective_user.id)
+    prefs = load_prefs()
+    is_member = prefs.get(user_id, {}).get("circle_member", False)
+    await update.effective_message.reply_text("Choose where you'd like to go 💙", reply_markup=make_menu(is_member=is_member))
 
 async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_message.voice:
+        await voice_capture(update, context)
+        return
+
     if context.user_data.get("awaiting_question"):
         context.user_data["awaiting_question"] = False
         user = update.effective_user
@@ -1068,7 +1227,7 @@ async def on_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_message.reply_text("Got it — I'll personally get back to you on this within 24h. 💙")
         return
 
-    text = update.effective_message.text.lower()
+    text = (update.effective_message.text or "").lower()
     name = update.effective_user.first_name or ""
     greeting = f"{name}, " if name else ""
 
@@ -1111,6 +1270,7 @@ async def error_handler(update, context):
 async def weekly_summary(context):
     prefs = load_prefs()
     total = len(prefs)
+    members = sum(1 for d in prefs.values() if d.get("circle_member"))
     reminded = sum(1 for d in prefs.values() if "utc_offset" in d)
     try:
         log_lines = open(LOG_FILE).readlines()
@@ -1125,7 +1285,7 @@ async def weekly_summary(context):
         top_str = "no data"
     await context.bot.send_message(
         chat_id=ADMIN_ID,
-        text=f"📊 Weekly summary\n\n👥 Total users: {total}\n🔔 With reminders: {reminded}\n\nTop commands:\n{top_str}"
+        text=f"📊 Weekly summary\n\n👥 Total users: {total}\n💛 Circle members: {members}\n🔔 With reminders: {reminded}\n\nTop commands:\n{top_str}"
     )
 
 
@@ -1160,6 +1320,7 @@ def main():
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("bookings", bookings_command))
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex("^Menu$"), menu_button))
+    app.add_handler(MessageHandler(filters.VOICE, voice_capture))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(ChatMemberHandler(track_member, ChatMemberHandler.MY_CHAT_MEMBER))
