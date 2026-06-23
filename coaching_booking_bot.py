@@ -1142,8 +1142,7 @@ async def create_1on1_payment(update: Update, context: ContextTypes.DEFAULT_TYPE
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    if is_rate_limited(query.from_user.id):
-        return
+  
     data = query.data
     message = query.message
     chat_id = message.chat_id
