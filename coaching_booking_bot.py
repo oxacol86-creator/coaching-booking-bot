@@ -856,12 +856,50 @@ PACKAGES = {
 
 BIO_TEXT = (
     "<b>A little about me:</b>\n\n"
-    "• I've spent years working 1:1 with people on panic attacks and nervous system regulation\n"
-    "• My approach is built on the actual neuroscience of panic — Selye, Sapolsky, Porges, Levine — not generic advice\n"
-    "• I've been through this myself. This isn't theory I read about — it's something I lived and came out the other side of\n\n"
-    "I built a course on this (<i>The Brain That Saved You</i>), but most of the real shifts happen 1:1 — "
-    "when we can go straight to what's actually keeping your nervous system stuck."
+    "<blockquote>I had panic disorder. Agoraphobia. Social phobia. A flying phobia. "
+    "Fear of choking. Fear of accidentally eating something bad. Plus inflammation, "
+    "allergies, food intolerances, gut issues, chronic pain, skin problems, headaches, "
+    "eczema — for years.\n\n"
+    "It started with a niacin flush. My whole body went red and burning. I thought "
+    "something was seriously wrong with me.\n\n"
+    "I didn't leave the house for a month after that. Every time I got near the front "
+    "gate my heart would start racing so hard I'd shake. My feet and knees would sweat "
+    "so much I'd slip right out of my shoes.\n\n"
+    "<i>Why was I fine yesterday, and not today?</i>\n\n"
+    "So I started digging. First I thought it was food — histamines. I cut every "
+    "high-histamine food out. Didn't help much. Then I thought it was sulfur. Cut that "
+    "too. Helped a little, not enough. I kept cutting things until I was down to five "
+    "ingredients: rice, plain chicken, cucumber, olive oil, parsley. I lost a lot of "
+    "weight. I was scared of food.\n\n"
+    "Then I heard Matt Blackburn on Instagram say something like: how do you expect your body "
+    "to stop reacting to food if it's depleted? That hit me. You need certain vitamins "
+    "just to absorb other vitamins. So I started eating again. Gained some weight back. "
+    "My baseline anxiety dropped by more than half. I could finally think straight.\n\n"
+    "Then I went looking into nervous system work. Red light therapy. Ice baths — I "
+    "never actually did the ice part, my body had enough stress already, but I took "
+    "the idea behind it: train your brain not to panic about stress. I used my own "
+    "panic attacks as that training ground instead — staying as aware as I could, "
+    "while it was happening.\n\n"
+    "My panic attacks got a lot better. Less frequent. Shorter when they did happen. "
+    "A real, definite improvement.\n\n"
+    "But I was still avoiding triggers. I'd stopped socializing. Still afraid of "
+    "certain foods, afraid of eating at new restaurants. I stopped seeing friends "
+    "because I was scared I'd panic in front of them. I got really lonely. My whole "
+    "life had shrunk down to only the things that wouldn't set off a panic attack.\n\n"
+    "After that: polyvagal theory. Hypnotherapy. Generational trauma work through "
+    "Mark Wolynn's program. Psychosomatic and health coaching. Psychology training "
+    "under Kurpatov.\n\n"
+    "<b>None of it alone fixed it. All of it together did.</b>\n\n"
+    "I'm not a therapist. I don't have a clinical license. What I have is years of "
+    "digging through my own body's mess until it actually stopped — and the training "
+    "to understand why it worked.</blockquote>"
 )
+
+def bio_gate_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📖 About me", callback_data="show_bio")],
+        [InlineKeyboardButton("Continue →", callback_data="step_proof")],
+    ])
 
 TESTIMONIALS_TEXT = (
     "I'll say this directly: a session with me isn't a script-reading exercise. We follow what's actually happening for you.\n\n"
@@ -1130,6 +1168,13 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Optional 1:1 coaching upsell
     if data == "book_coaching":
+        await message.reply_text(
+            "Before we talk about sessions — want to know my actual story? "
+            "Totally optional, no pressure either way.",
+            reply_markup=bio_gate_keyboard(),
+        )
+        return
+    if data == "show_bio":
         await message.reply_text(BIO_TEXT, parse_mode="HTML",
                                   reply_markup=continue_keyboard("See what real sessions look like", "step_proof"))
         return
