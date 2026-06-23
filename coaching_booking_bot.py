@@ -397,7 +397,7 @@ async def send_screen(update_or_message, chat_id, screen_key, text, keyboard, co
     message = update_or_message
     file_id = VOICE_NOTES.get(screen_key)
     if file_id:
-        await message.reply_text(text, parse_mode="HTML")
+        await message.reply_text(text, parse_mode="HTML", reply_markup=persistent_keyboard())
         try:
             await context.bot.send_voice(chat_id=chat_id, voice=file_id, reply_markup=keyboard)
         except Exception:
@@ -462,16 +462,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await update.effective_message.reply_text(
             "Choose where you'd like to start:", reply_markup=make_menu(is_member=True)
-        )
-        return
-
-    if record.get("seen_funnel"):
-        await update.effective_message.reply_text(
-            f"Hey{' ' + name if name else ''}. 💙 Good to see you again.",
-            reply_markup=persistent_keyboard()
-        )
-        await update.effective_message.reply_text(
-            "Choose where you'd like to start:", reply_markup=make_menu()
         )
         return
 
