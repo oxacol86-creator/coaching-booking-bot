@@ -181,7 +181,7 @@ def make_menu(show_reminder=False, is_member=False):
     if is_member:
         keyboard.append([InlineKeyboardButton("💬 Ask about 1:1 coaching", callback_data="book_coaching")])
     else:
-        keyboard.append([InlineKeyboardButton("💛 Join the Panic Circle", callback_data="screen2")])
+        keyboard.append([InlineKeyboardButton("💛 Join the Panic Circle", callback_data="price")])
     if show_reminder:
         keyboard.append([
             InlineKeyboardButton("🔔 Remind me daily", callback_data="remind_yes"),
@@ -436,7 +436,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if payload == "cancelled":
             await update.effective_message.reply_text(
                 "No worries — the offer's still here whenever you're ready. 💙",
-                reply_markup=single_button("💛 Join the Panic Circle", "screen2"),
+                reply_markup=single_button("💛 Join the Panic Circle", "price"),
             )
             return
 
